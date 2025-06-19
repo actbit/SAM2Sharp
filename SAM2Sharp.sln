@@ -1,0 +1,31 @@
+﻿
+Microsoft Visual Studio Solution File, Format Version 12.00
+# Visual Studio Version 17
+VisualStudioVersion = 17.13.35818.85 d17.13
+MinimumVisualStudioVersion = 10.0.40219.1
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SAM2Sharp", "SAM2Sharp\SAM2Sharp.csproj", "{8247CA00-BBBD-4A4C-9C04-388B8EE9BCCA}"
+EndProject
+Project("{FAE04EC0-301F-11D3-BF4B-00C04F79EFBC}") = "SAM2Sample", "SAM2Sample\SAM2Sample.csproj", "{05C62863-2766-4975-A2C7-9A42066DCC58}"
+EndProject
+Global
+	GlobalSection(SolutionConfigurationPlatforms) = preSolution
+		Debug|Any CPU = Debug|Any CPU
+		Release|Any CPU = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(ProjectConfigurationPlatforms) = postSolution
+		{8247CA00-BBBD-4A4C-9C04-388B8EE9BCCA}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{8247CA00-BBBD-4A4C-9C04-388B8EE9BCCA}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{8247CA00-BBBD-4A4C-9C04-388B8EE9BCCA}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{8247CA00-BBBD-4A4C-9C04-388B8EE9BCCA}.Release|Any CPU.Build.0 = Release|Any CPU
+		{05C62863-2766-4975-A2C7-9A42066DCC58}.Debug|Any CPU.ActiveCfg = Debug|Any CPU
+		{05C62863-2766-4975-A2C7-9A42066DCC58}.Debug|Any CPU.Build.0 = Debug|Any CPU
+		{05C62863-2766-4975-A2C7-9A42066DCC58}.Release|Any CPU.ActiveCfg = Release|Any CPU
+		{05C62863-2766-4975-A2C7-9A42066DCC58}.Release|Any CPU.Build.0 = Release|Any CPU
+	EndGlobalSection
+	GlobalSection(SolutionProperties) = preSolution
+		HideSolutionNode = FALSE
+	EndGlobalSection
+	GlobalSection(ExtensibilityGlobals) = postSolution
+		SolutionGuid = {2302D362-AC07-4157-95C4-DD170AC9BE73}
+	EndGlobalSection
+EndGlobal
