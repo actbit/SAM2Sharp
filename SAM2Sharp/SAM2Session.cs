@@ -76,29 +76,32 @@ namespace SAM2Sharp
             Tensor<float> highResFeats0Value = null; // 初期化
             Tensor<float> highResFeats1Value = null; // 初期化
 
-            using var encoderResults = _imageEncoderSession.Run(encoderInputs);
-            // SAM 2 のエンコーダ出力は通常 'image_embeds' と 'intermediate_hidden_states' (リスト)
-            // ここでは 'image_embed' が最終的な埋め込み、'hidden_states.X' が中間層と仮定
-            var imageEmbedsNode = encoderResults.FirstOrDefault(v => v.Name == EncoderOutputName);
-            if (imageEmbedsNode != null)
-                imageEmbeddings = imageEmbedsNode.AsTensor<float>();
-            else
-                throw new Exception($"Encoder output '{EncoderOutputName}' not found. Check encoder model outputs.");
+            using (var encoderResults = _imageEncoderSession.Run(encoderInputs))
+            {
+                // SAM 2 のエンコーダ出力は通常 'image_embeds' と 'intermediate_hidden_states' (リスト)
+                // ここでは 'image_embed' が最終的な埋め込み、'hidden_states.X' が中間層と仮定
+                var imageEmbedsNode = encoderResults.FirstOrDefault(v => v.Name == EncoderOutputName);
+                if (imageEmbedsNode != null)
+                    imageEmbeddings = imageEmbedsNode.AsTensor<float>();
+                else
+                    throw new Exception($"Encoder output '{EncoderOutputName}' not found. Check encoder model outputs.");
 
 
-            var hrFeatsNode0 = encoderResults.FirstOrDefault(v => v.Name == DecoderOutputNameHighResFeats_0);
-            if (hrFeatsNode0 != null)
-                highResFeats0Value = hrFeatsNode0.AsTensor<float>();
-            else
-                Console.WriteLine($"Warning: Encoder output '{DecoderOutputNameHighResFeats_0}' not found. Using null. Check model if this feature is required.");
-            // throw new Exception($"Encoder output '{DecoderOutputNameHighResFeats_0}' not found. Check encoder model outputs.");
+                var hrFeatsNode0 = encoderResults.FirstOrDefault(v => v.Name == DecoderOutputNameHighResFeats_0);
+                if (hrFeatsNode0 != null)
+                    highResFeats0Value = hrFeatsNode0.AsTensor<float>();
+                else
+                    Console.WriteLine($"Warning: Encoder output '{DecoderOutputNameHighResFeats_0}' not found. Using null. Check model if this feature is required.");
+                // throw new Exception($"Encoder output '{DecoderOutputNameHighResFeats_0}' not found. Check encoder model outputs.");
 
-            var hrFeatsNode1 = encoderResults.FirstOrDefault(v => v.Name == DecoderOutputNameHighResFeats_1);
-            if (hrFeatsNode1 != null)
-                highResFeats1Value = hrFeatsNode1.AsTensor<float>();
-            else
-                Console.WriteLine($"Warning: Encoder output '{DecoderOutputNameHighResFeats_1}' not found. Using null. Check model if this feature is required.");
-            // throw new Exception($"Encoder output '{DecoderOutputNameHighResFeats_1}' not found. Check encoder model outputs.");
+                var hrFeatsNode1 = encoderResults.FirstOrDefault(v => v.Name == DecoderOutputNameHighResFeats_1);
+                if (hrFeatsNode1 != null)
+                    highResFeats1Value = hrFeatsNode1.AsTensor<float>();
+                else
+                    Console.WriteLine($"Warning: Encoder output '{DecoderOutputNameHighResFeats_1}' not found. Using null. Check model if this feature is required.");
+                // throw new Exception($"Encoder output '{DecoderOutputNameHighResFeats_1}' not found. Check encoder model outputs.");
+
+            }
 
 
             var allMasks = new List<SegmentationResult>();
@@ -146,12 +149,16 @@ namespace SAM2Sharp
                     decoderInputs.Add(NamedOnnxValue.CreateFromTensor(DecoderOutputNameHighResFeats_1, highResFeats1Value));
                 }
 
+                Tensor<float> masksTensor;
+                Tensor<float> iouScoresTensor;
+                using (var decoderResults = _maskDecoderSession.Run(decoderInputs))
+                {
+                    masksTensor = decoderResults.First(v => v.Name == DecoderOutputMasksName).AsTensor<float>(); // (バッチ, Numマスク/ポイント, H, W)
+                    iouScoresTensor = decoderResults.First(v => v.Name == DecoderOutputIouScoresName).AsTensor<float>(); // (バッチ, Numマスク/ポイント)
 
-                using var decoderResults = _maskDecoderSession.Run(decoderInputs);
-                var masksTensor = decoderResults.First(v => v.Name == DecoderOutputMasksName).AsTensor<float>(); // (バッチ, Numマスク/ポイント, H, W)
-                var iouScoresTensor = decoderResults.First(v => v.Name == DecoderOutputIouScoresName).AsTensor<float>(); // (バッチ, Numマスク/ポイント)
+                }
+                var  processedMasks = ProcessMasks(masksTensor, iouScoresTensor, originalWidth, originalHeight, batchPoints, predIouThresh, minMaskRegionArea);
 
-                var processedMasks = ProcessMasks(masksTensor, iouScoresTensor, originalWidth, originalHeight, batchPoints, predIouThresh, minMaskRegionArea);
                 allMasks.AddRange(processedMasks);
             }
             return allMasks;
@@ -173,19 +180,20 @@ namespace SAM2Sharp
 
             // リサイズ (SkiaSharp は新しい SKBitmap を返す)
             // SKFilterQuality.High は Bicubic に近い高品質なリサイズ
-            using SKBitmap resizedImage = image.Resize(new SKSizeI(newWidth, newHeight), new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.Nearest));
-
-            // パディングして targetLength x targetLength にする
-            // SKBitmap はデフォルトで SKColorType.Bgra8888 またはプラットフォーム依存。Rgb888x を明示。
-            // アルファチャンネルが不要であれば Opaque
             var paddedBitmap = new SKBitmap(targetLength, targetLength, SKColorType.Rgb888x, SKAlphaType.Opaque);
-            using (var canvas = new SKCanvas(paddedBitmap))
+
+            using (SKBitmap resizedImage = image.Resize(new SKSizeI(newWidth, newHeight), new SKSamplingOptions(SKFilterMode.Nearest, SKMipmapMode.Nearest)))
             {
-                canvas.Clear(SKColors.Black); // パディング色でクリア
-                int padX = (targetLength - newWidth) / 2;
-                int padY = (targetLength - newHeight) / 2;
-                canvas.DrawBitmap(resizedImage, SKRect.Create(padX, padY, newWidth, newHeight));
+                using (var canvas = new SKCanvas(paddedBitmap))
+                {
+                    canvas.Clear(SKColors.Black); // パディング色でクリア
+                    int padX = (targetLength - newWidth) / 2;
+                    int padY = (targetLength - newHeight) / 2;
+                    canvas.DrawBitmap(resizedImage, SKRect.Create(padX, padY, newWidth, newHeight));
+                }
+
             }
+
 
             var mean = new[] { 123.675f, 116.28f, 103.53f }; // ImageNet mean
             var std = new[] { 58.395f, 57.12f, 57.375f };   // ImageNet std
