@@ -24,8 +24,8 @@ namespace SAM2Sharp
 
         private const string EncoderInputName = "image";
         private const string EncoderOutputName = "image_embed";
-        private const string DecoderOutputNameHighResFeats_0 = "hidden_states_0"; // 例: sam-vit-base の場合など (要確認)
-        private const string DecoderOutputNameHighResFeats_1 = "hidden_states_1"; // 例: (要確認)
+        private const string DecoderOutputNameHighResFeats_0 = "high_res_feats_0"; // 例: sam-vit-base の場合など (要確認)
+        private const string DecoderOutputNameHighResFeats_1 = "high_res_feats_1"; // 例: (要確認)
 
         private const string DecoderEmbeddingInputName = "image_embed"; // モデルの入力名に合わせる
         private const string DecoderPointCoordsInputName = "point_coords";
@@ -148,7 +148,15 @@ namespace SAM2Sharp
                 {
                     decoderInputs.Add(NamedOnnxValue.CreateFromTensor(DecoderOutputNameHighResFeats_1, highResFeats1Value));
                 }
-
+                var hasMaskInput = new DenseTensor<float>(new[] { 0f }, new[] { 1 });  // 初回なので 0
+                var hasMaskInputValue = NamedOnnxValue.CreateFromTensor("has_mask_input", hasMaskInput);
+                decoderInputs.Add(hasMaskInputValue); // has_mask_input は通常ゼロショットでは不要だが、モデルによっては必要
+                var maskInput = new DenseTensor<float>(new[] { 1, 1, 256, 256 });
+                for (int j = 0; j < maskInput.Length; j++)
+                {
+                    maskInput.Buffer.Span[i] = 0f; // 全ゼロ
+                }
+                decoderInputs.Add(NamedOnnxValue.CreateFromTensor("mask_input",maskInput));
                 Tensor<float> masksTensor;
                 Tensor<float> iouScoresTensor;
                 using (var decoderResults = _maskDecoderSession.Run(decoderInputs))
